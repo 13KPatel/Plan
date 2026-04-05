@@ -1,273 +1,423 @@
-<!DOCTYPE html>
+import { useState, useCallback } from “react”;
 
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<title>Kam's Timetable</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet"/>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  body{background:#0A0A0F;color:#E2E8F0;font-family:'DM Mono','Courier New',monospace;min-height:100vh;overflow-x:hidden}
-  ::-webkit-scrollbar{width:3px}
-  ::-webkit-scrollbar-thumb{background:#2D2D3A;border-radius:2px}
+const DEFAULT_GOALS = [
+{ id:“G1”,  label:“Build a Routine”,          icon:“⏰”, cat:“mind” },
+{ id:“G2”,  label:“Treat Body Better”,         icon:“💪”, cat:“body” },
+{ id:“G3”,  label:“Balanced Diet”,             icon:“🥗”, cat:“body” },
+{ id:“G4”,  label:“Start a Business”,          icon:“🚀”, cat:“career” },
+{ id:“G5”,  label:“Read Every Day”,            icon:“📚”, cat:“learning” },
+{ id:“G6”,  label:“Commercial Knowledge”,      icon:“📊”, cat:“career” },
+{ id:“G7”,  label:“Learn Guitar”,              icon:“🎸”, cat:“learning” },
+{ id:“G8”,  label:“Quality Social Group”,      icon:“🤝”, cat:“social” },
+{ id:“G9”,  label:“Play Tennis”,               icon:“🎾”, cat:“body” },
+{ id:“G10”, label:“Peace of Mind”,             icon:“🧘”, cat:“mind” },
+{ id:“G11”, label:“Remove Past Trauma”,        icon:“💙”, cat:“mind” },
+{ id:“G13”, label:“Learn History & Culture”,   icon:“🌍”, cat:“learning” },
+{ id:“G14”, label:“Healthy Relationship”,      icon:“❤️”, cat:“social” },
+{ id:“G15”, label:“Speak to Myself with Love”, icon:“✨”, cat:“mind” },
+];
 
-#header{background:linear-gradient(180deg,#0F0F1A 0%,#0A0A0F 100%);border-bottom:1px solid #1E1E2E;padding:env(safe-area-inset-top,20px) 20px 0;padding-top:max(env(safe-area-inset-top),20px)}
-.eyebrow{font-size:10px;letter-spacing:3px;color:#F59E0B;font-weight:500;margin-bottom:6px}
-h1{font-family:‘Playfair Display’,Georgia,serif;font-size:36px;font-weight:900;background:linear-gradient(135deg,#fff 0%,#94A3B8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1}
-.subtitle{font-size:11px;color:#64748B;letter-spacing:.5px;margin:6px 0 20px}
+const CAT_COLORS = {
+mind:     { color:”#C084FC”, bg:“rgba(192,132,252,0.12)”, border:“rgba(192,132,252,0.25)” },
+body:     { color:”#34D399”, bg:“rgba(52,211,153,0.12)”,  border:“rgba(52,211,153,0.25)” },
+career:   { color:”#F59E0B”, bg:“rgba(245,158,11,0.12)”,  border:“rgba(245,158,11,0.25)” },
+learning: { color:”#60A5FA”, bg:“rgba(96,165,250,0.12)”,  border:“rgba(96,165,250,0.25)” },
+social:   { color:”#F472B6”, bg:“rgba(244,114,182,0.12)”, border:“rgba(244,114,182,0.25)” },
+routine:  { color:”#94A3B8”, bg:“rgba(148,163,184,0.08)”, border:“rgba(148,163,184,0.18)” },
+};
 
-.day-tabs{display:flex;overflow-x:auto;border-bottom:1px solid #1E1E2E;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.day-tabs::-webkit-scrollbar{display:none}
-.day-tab{flex:0 0 auto;background:none;border:none;color:#475569;font-family:‘DM Mono’,monospace;font-size:11px;font-weight:500;letter-spacing:2px;padding:12px 16px;cursor:pointer;position:relative;transition:color .2s}
-.day-tab.active{color:#F59E0B}
-.day-tab.active::after{content:’’;position:absolute;bottom:-1px;left:0;right:0;height:2px;background:#F59E0B}
+const CAT_LABELS = {
+mind:“Mind & Soul”, body:“Body & Health”, career:“Career & Business”,
+learning:“Learning & Culture”, social:“Social & Relationships”,
+};
 
-#main{padding:20px 20px 80px;max-width:720px;margin:0 auto}
+const QUICK_ICONS = [“⭐”,“🏆”,“💡”,“🎯”,“🔥”,“💰”,“🧠”,“🏃”,“😴”,“🎨”,“🎵”,“📝”,“🌱”,“🤸”,“🧘”,“❤️”,“💙”,“✨”,“🌍”,“🚀”];
 
-.filters{display:flex;gap:8px;overflow-x:auto;margin-bottom:20px;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.filters::-webkit-scrollbar{display:none}
-.filter-btn{flex:0 0 auto;border:1px solid transparent;border-radius:4px;font-family:‘DM Mono’,monospace;font-size:10px;font-weight:500;letter-spacing:1.5px;padding:6px 12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+const BASE_BLOCKS = [
+{ id:1,  time:“06:00”, dur:20,  title:“Journaling & Gratitude”,   cat:“mind”,    goals:[“G15”,“G10”,“G11”], desc:“3 things you’re grateful for. Set 3 intentions. Reframe any negative self-talk.”, days:[0,1,2,3,4,5,6] },
+{ id:2,  time:“06:20”, dur:10,  title:“Morning Routine”,          cat:“routine”, goals:[“G1”],             desc:“Cold shower, get dressed, prep mentally for the day.”, days:[0,1,2,3,4] },
+{ id:3,  time:“06:30”, dur:60,  title:“Gym Session”,              cat:“body”,    goals:[“G2”,“G3”],        desc:“Log your lifts. Weights Mon/Wed/Fri, cardio or tennis alternate days.”, days:[0,2,4,5] },
+{ id:4,  time:“08:00”, dur:30,  title:“Healthy Breakfast”,        cat:“body”,    goals:[“G3”],             desc:“Low carb, high protein. Prep the night before when possible.”, days:[0,1,2,3,4,5,6] },
+{ id:5,  time:“09:00”, dur:480, title:“Work / Deep Work”,         cat:“career”,  goals:[“G6”],             desc:“Prioritise hardest tasks in the morning. One commercial learning goal per day.”, days:[0,1,2,3,4] },
+{ id:6,  time:“18:00”, dur:30,  title:“Reading Block”,            cat:“learning”,goals:[“G5”,“G13”],       desc:“20+ pages minimum. Non-fiction, history, or culture. No screens.”, days:[0,1,2,3,4,5,6] },
+{ id:7,  time:“18:30”, dur:30,  title:“Guitar Practice”,          cat:“learning”,goals:[“G7”],             desc:“15-30 mins. Justin Guitar or Fender Play. Focus on one song per week.”, days:[0,2,3,5,6] },
+{ id:8,  time:“18:00”, dur:90,  title:“Tennis”,                   cat:“body”,    goals:[“G9”],             desc:“Book a court. Find a regular partner. Keep score to stay competitive.”, days:[1,6] },
+{ id:9,  time:“19:30”, dur:90,  title:“Business / Side Hustle”,   cat:“career”,  goals:[“G4”,“G6”],        desc:“AI agency or Trust Manager app. Build, pitch, or research. Ship something.”, days:[0,2,3] },
+{ id:10, time:“19:00”, dur:60,  title:“Social / Relationships”,   cat:“social”,  goals:[“G8”,“G14”],       desc:“Reach out intentionally. Make plans. Invest in quality people.”, days:[2,4] },
+{ id:11, time:“12:00”, dur:120, title:“Business Sprint”,          cat:“career”,  goals:[“G4”],             desc:“Biggest block of the week. Focus on Trust Manager app or AI agency.”, days:[5] },
+{ id:12, time:“16:00”, dur:60,  title:“Self-Reflection”,          cat:“mind”,    goals:[“G11”,“G10”],      desc:“Work through past feelings. Consider professional therapy — highest ROI habit on this list.”, days:[6] },
+{ id:13, time:“21:00”, dur:60,  title:“Wind Down”,                cat:“routine”, goals:[“G1”,“G10”],       desc:“No screens. Light stretching or walk. Prep tomorrow. Protect your sleep.”, days:[0,1,2,3,4,5,6] },
+{ id:14, time:“22:00”, dur:480, title:“Sleep”,                    cat:“routine”, goals:[“G1”],             desc:“8 hours non-negotiable. Everything else depends on this.”, days:[0,1,2,3,4,5,6] },
+{ id:15, time:“14:00”, dur:120, title:“Weekly Business Planning”, cat:“career”,  goals:[“G4”,“G6”],        desc:“Review goals. Plan next week. Identify one key action to move forward.”, days:[6] },
+{ id:16, time:“10:30”, dur:60,  title:“Meal Prep”,                cat:“body”,    goals:[“G3”],             desc:“Prep healthy meals for the week. Removes daily decision fatigue.”, days:[5] },
+{ id:17, time:“18:00”, dur:120, title:“Social Evening”,           cat:“social”,  goals:[“G8”,“G14”],       desc:“Quality time with people you care about. Be fully present.”, days:[5] },
+{ id:18, time:“07:30”, dur:20,  title:“Weekly Review”,            cat:“mind”,    goals:[“G1”,“G10”,“G15”], desc:“Score yourself on each goal. What went well? What do you improve next week?”, days:[6] },
+];
 
-.blocks{display:flex;flex-direction:column;gap:8px}
-.block{border-radius:8px;padding:14px 16px;cursor:pointer;transition:transform .15s;border:1px solid #1E1E2E;border-left-width:3px;background:rgba(255,255,255,.03);user-select:none}
-.block:active{transform:scale(.98)}
-.block-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.block-time{flex:0 0 auto;text-align:right}
-.block-time-main{font-size:11px;font-weight:500;letter-spacing:.5px}
-.block-time-dur{font-size:9px;color:#334155;letter-spacing:.5px;margin-top:2px}
-.divider{width:1px;height:32px;background:#1E1E2E;flex:0 0 auto}
-.block-info{flex:1;min-width:0}
-.block-title{font-size:13px;font-weight:500;color:#E2E8F0;letter-spacing:.3px}
-.block-cat{font-size:10px;letter-spacing:.5px;margin-top:2px}
-.arrow{font-size:16px;color:#334155;flex:0 0 auto;transition:transform .2s}
-.arrow.open{transform:rotate(90deg)}
+const DAYS_FULL  = [“Monday”,“Tuesday”,“Wednesday”,“Thursday”,“Friday”,“Saturday”,“Sunday”];
+const DAYS_SHORT = [“MON”,“TUE”,“WED”,“THU”,“FRI”,“SAT”,“SUN”];
 
-.expand{overflow:hidden;max-height:0;opacity:0;transition:max-height .25s ease,opacity .25s ease}
-.expand.open{max-height:200px;opacity:1}
-.expand-inner{margin-top:12px;padding-top:12px;border-top-width:1px;border-top-style:solid}
-.expand-desc{font-size:12px;color:#94A3B8;line-height:1.6;letter-spacing:.3px;margin-bottom:8px}
-.goal-tag{display:inline-block;font-size:9px;padding:2px 6px;border-radius:3px;margin-right:4px;margin-bottom:4px;background:rgba(255,255,255,.06);color:#94A3B8;letter-spacing:.5px}
+function fmt(t) {
+const [h,m] = t.split(”:”).map(Number);
+return `${h%12||12}:${String(m).padStart(2,"0")} ${h>=12?"PM":"AM"}`;
+}
+function toMins(t) {
+const [h,m] = t.split(”:”).map(Number);
+return h*60+m;
+}
 
-.legend{margin-top:36px;padding:20px;background:rgba(255,255,255,.02);border:1px solid #1E1E2E;border-radius:8px}
-.legend-title{font-size:10px;letter-spacing:2px;color:#475569;margin-bottom:14px}
-.legend-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
-.legend-item{display:flex;gap:8px;align-items:flex-start}
-.legend-key{font-size:10px;color:#F59E0B;font-weight:500;flex:0 0 auto;margin-top:1px}
-.legend-val{font-size:11px;color:#64748B;letter-spacing:.3px;line-height:1.4}
-</style>
+const inp = { background:“rgba(255,255,255,0.07)”, border:“1px solid #2D2D3A”, borderRadius:8, color:”#E2E8F0”, fontFamily:“inherit”, fontSize:13, padding:“8px 12px”, width:“100%”, outline:“none” };
 
-</head>
-<body>
+export default function App() {
+const today = new Date().getDay();
+const [tab, setTab]                     = useState(“today”);
+const [activeDay, setActiveDay]         = useState(today===0?6:today-1);
+const [goals, setGoals]                 = useState(DEFAULT_GOALS);
+const [activeGoals, setActiveGoals]     = useState(new Set(DEFAULT_GOALS.map(g=>g.id)));
+const [blocks, setBlocks]               = useState(BASE_BLOCKS);
+const [tips, setTips]                   = useState({});
+const [loadingTip, setLoadingTip]       = useState(null);
+const [expandedId, setExpandedId]       = useState(null);
+const [editingId, setEditingId]         = useState(null);
+const [editForm, setEditForm]           = useState({});
+const [showAdd, setShowAdd]             = useState(false);
+const [newBlock, setNewBlock]           = useState({ time:“09:00”, dur:30, title:””, cat:“routine”, desc:”” });
+const [dailyTip, setDailyTip]           = useState(””);
+const [loadingDaily, setLoadingDaily]   = useState(false);
+const [showAddGoal, setShowAddGoal]     = useState(false);
+const [confirmDelete, setConfirmDelete] = useState(null);
+const [newGoal, setNewGoal]             = useState({ label:””, icon:“⭐”, cat:“mind” });
+const [pickerOpen, setPickerOpen]       = useState(false);
 
-<div id="header">
-  <p class="eyebrow">YOUR PLAN — 05.04.2026</p>
-  <h1>Daily Timetable</h1>
-  <p class="subtitle">15 goals · mapped across 7 days</p>
-  <div class="day-tabs" id="dayTabs"></div>
-</div>
+const todayBlocks = blocks
+.filter(b=>b.days.includes(activeDay)&&(b.goals.some(g=>activeGoals.has(g))||b.cat===“routine”))
+.sort((a,b)=>toMins(a.time)-toMins(b.time));
 
-<div id="main">
-  <div class="filters" id="filters"></div>
-  <div class="blocks" id="blocks"></div>
-  <div class="legend">
-    <p class="legend-title">GOAL REFERENCE</p>
-    <div class="legend-grid" id="legend"></div>
+function toggleGoal(id) {
+setActiveGoals(prev=>{ const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
+}
+
+function addGoal() {
+if (!newGoal.label.trim()) return;
+const id = “CUSTOM_” + Date.now();
+const goal = { …newGoal, id };
+setGoals(p=>[…p, goal]);
+setActiveGoals(p=>new Set([…p, id]));
+setNewGoal({ label:””, icon:“⭐”, cat:“mind” });
+setShowAddGoal(false);
+setPickerOpen(false);
+}
+
+function removeGoal(id) {
+setGoals(p=>p.filter(g=>g.id!==id));
+setActiveGoals(p=>{ const n=new Set(p); n.delete(id); return n; });
+setConfirmDelete(null);
+}
+
+const fetchTip = useCallback(async (block) => {
+const key=`${block.id}-${activeDay}`;
+if (tips[key]) return;
+setLoadingTip(key);
+const goalLabels = block.goals.filter(g=>activeGoals.has(g)).map(g=>goals.find(x=>x.id===g)?.label).filter(Boolean).join(”, “);
+try {
+const res = await fetch(“https://api.anthropic.com/v1/messages”, {
+method:“POST”, headers:{“Content-Type”:“application/json”},
+body:JSON.stringify({ model:“claude-sonnet-4-20250514”, max_tokens:200,
+system:“Direct no-fluff personal coach. User is Kam — 26, ACA-qualified finance professional, building an AI business and UK Trust Manager app. Lost his father in 2023. 2-3 sentences max. Specific and personal.”,
+messages:[{role:“user”,content:`Tip for: "${block.title}" on ${DAYS_FULL[activeDay]}. Goals: ${goalLabels}. Context: ${block.desc}`}]
+})
+});
+const d = await res.json();
+setTips(p=>({…p,[key]:d.content?.[0]?.text||“Focus and execute.”}));
+} catch { setTips(p=>({…p,[key]:“Focus on this block. Consistency beats perfection.”})); }
+setLoadingTip(null);
+}, [activeDay, activeGoals, goals, tips]);
+
+async function fetchDailyTip() {
+setLoadingDaily(true);
+const gl=[…activeGoals].map(g=>goals.find(x=>x.id===g)?.label).filter(Boolean).join(”, “);
+try {
+const res = await fetch(“https://api.anthropic.com/v1/messages”, {
+method:“POST”, headers:{“Content-Type”:“application/json”},
+body:JSON.stringify({ model:“claude-sonnet-4-20250514”, max_tokens:200,
+system:“Direct motivating coach. Kam — 26, ACA-qualified, building AI business, lost his dad in 2023. Real not generic. Max 3 sentences.”,
+messages:[{role:“user”,content:`Daily focus for ${DAYS_FULL[activeDay]}. Active goals: ${gl}.`}]
+})
+});
+const d = await res.json();
+setDailyTip(d.content?.[0]?.text||“Show up. Do the work. That’s it.”);
+} catch { setDailyTip(“Show up. Do the work. That’s it.”); }
+setLoadingDaily(false);
+}
+
+function deleteBlock(id) { setBlocks(p=>p.filter(b=>b.id!==id)); }
+function startEdit(block) { setEditingId(block.id); setEditForm({time:block.time,dur:block.dur,title:block.title,desc:block.desc}); }
+function saveEdit(id) { setBlocks(p=>p.map(b=>b.id===id?{…b,…editForm,dur:parseInt(editForm.dur)||30}:b)); setEditingId(null); }
+function addBlock() {
+if (!newBlock.title.trim()) return;
+setBlocks(p=>[…p,{…newBlock,id:Date.now(),dur:parseInt(newBlock.dur)||30,goals:[“G1”],days:[0,1,2,3,4,5,6]}]);
+setNewBlock({time:“09:00”,dur:30,title:””,cat:“routine”,desc:””});
+setShowAdd(false);
+}
+
+return (
+<div style={{fontFamily:”-apple-system,BlinkMacSystemFont,sans-serif”,background:”#0A0A0F”,minHeight:“100vh”,color:”#E2E8F0”,paddingBottom:80,maxWidth:480,margin:“0 auto”}}>
+
+```
+  {/* HEADER */}
+  <div style={{background:"#0F0F1A",borderBottom:"1px solid #1E1E2E",padding:"20px 20px 0"}}>
+    <div style={{fontSize:10,letterSpacing:3,color:"#F59E0B",marginBottom:4,fontWeight:600}}>KAM'S PLAN</div>
+    <div style={{fontSize:26,fontWeight:800,letterSpacing:-0.5,marginBottom:16}}>
+      {tab==="today"?DAYS_FULL[activeDay]:tab==="goals"?"Your Goals":"This Week"}
+    </div>
+    {tab==="today"&&(
+      <div style={{display:"flex",overflowX:"auto",scrollbarWidth:"none"}}>
+        {DAYS_SHORT.map((d,i)=>(
+          <button key={d} onClick={()=>{setActiveDay(i);setDailyTip("");setExpandedId(null);}}
+            style={{flex:"0 0 auto",background:"none",border:"none",borderBottom:activeDay===i?"2px solid #F59E0B":"2px solid transparent",color:activeDay===i?"#F59E0B":"#475569",fontSize:11,fontWeight:600,letterSpacing:1.5,padding:"10px 14px",cursor:"pointer"}}>
+            {d}
+          </button>
+        ))}
+      </div>
+    )}
+  </div>
+
+  {/* TODAY */}
+  {tab==="today"&&(
+    <div style={{padding:16}}>
+      <div style={{background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:12,padding:16,marginBottom:16}}>
+        {dailyTip
+          ?<p style={{fontSize:13,color:"#CBD5E1",lineHeight:1.6,margin:0}}>{dailyTip}</p>
+          :<button onClick={fetchDailyTip} disabled={loadingDaily} style={{background:"none",border:"none",color:"#F59E0B",fontSize:13,fontWeight:600,cursor:"pointer",padding:0}}>
+            {loadingDaily?"⏳ Loading...":"✦ Get today's focus message"}
+          </button>
+        }
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {todayBlocks.map(block=>{
+          const c=CAT_COLORS[block.cat]||CAT_COLORS.routine;
+          const isOpen=expandedId===block.id;
+          const tipKey=`${block.id}-${activeDay}`;
+          const isEditing=editingId===block.id;
+          return (
+            <div key={block.id} style={{background:isOpen?c.bg:"rgba(255,255,255,0.03)",border:`1px solid ${isOpen?c.border:"#1E1E2E"}`,borderLeft:`3px solid ${c.color}`,borderRadius:10,overflow:"hidden"}}>
+              {isEditing?(
+                <div style={{padding:14,display:"flex",flexDirection:"column",gap:8}}>
+                  <input value={editForm.title} onChange={e=>setEditForm(p=>({...p,title:e.target.value}))} placeholder="Title" style={inp}/>
+                  <div style={{display:"flex",gap:8}}>
+                    <input value={editForm.time} onChange={e=>setEditForm(p=>({...p,time:e.target.value}))} placeholder="HH:MM" style={{...inp,flex:1}}/>
+                    <input value={editForm.dur} onChange={e=>setEditForm(p=>({...p,dur:e.target.value}))} placeholder="Mins" type="number" style={{...inp,flex:1}}/>
+                  </div>
+                  <textarea value={editForm.desc} onChange={e=>setEditForm(p=>({...p,desc:e.target.value}))} placeholder="Notes" rows={2} style={{...inp,resize:"none"}}/>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>saveEdit(block.id)} style={{flex:1,background:"#F59E0B",color:"#0A0A0F",border:"none",borderRadius:8,padding:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>Save</button>
+                    <button onClick={()=>setEditingId(null)} style={{flex:1,background:"rgba(255,255,255,0.06)",color:"#94A3B8",border:"none",borderRadius:8,padding:10,fontSize:13,cursor:"pointer"}}>Cancel</button>
+                  </div>
+                </div>
+              ):(
+                <>
+                  <div onClick={()=>{setExpandedId(isOpen?null:block.id);if(!isOpen)fetchTip(block);}} style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+                    <div style={{flex:"0 0 auto",textAlign:"right",minWidth:58}}>
+                      <div style={{fontSize:11,fontWeight:600,color:c.color}}>{fmt(block.time)}</div>
+                      <div style={{fontSize:10,color:"#334155",marginTop:2}}>{block.dur}m</div>
+                    </div>
+                    <div style={{width:1,height:30,background:"#1E1E2E",flex:"0 0 auto"}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:600,color:"#E2E8F0"}}>{block.title}</div>
+                      <div style={{fontSize:13,marginTop:3}}>{block.goals.filter(g=>activeGoals.has(g)).map(g=>goals.find(x=>x.id===g)?.icon).join(" ")}</div>
+                    </div>
+                    <div style={{color:"#334155",fontSize:18,transform:isOpen?"rotate(90deg)":"none",transition:"transform .2s"}}>›</div>
+                  </div>
+                  {isOpen&&(
+                    <div style={{padding:"0 14px 14px"}}>
+                      <p style={{fontSize:13,color:"#94A3B8",lineHeight:1.6,marginBottom:10}}>{block.desc}</p>
+                      <div style={{background:"rgba(255,255,255,0.04)",borderRadius:8,padding:12,marginBottom:10}}>
+                        {loadingTip===tipKey
+                          ?<p style={{fontSize:12,color:"#F59E0B",margin:0}}>⏳ Getting your tip...</p>
+                          :tips[tipKey]
+                            ?<p style={{fontSize:12,color:"#CBD5E1",lineHeight:1.6,margin:0}}>✦ {tips[tipKey]}</p>
+                            :<button onClick={()=>fetchTip(block)} style={{background:"none",border:"none",color:"#60A5FA",fontSize:12,cursor:"pointer",padding:0}}>✦ Get AI tip for this block</button>
+                        }
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={()=>startEdit(block)} style={{flex:1,background:"rgba(255,255,255,0.06)",color:"#94A3B8",border:"none",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer"}}>✎ Edit</button>
+                        <button onClick={()=>deleteBlock(block.id)} style={{background:"rgba(239,68,68,0.1)",color:"#EF4444",border:"none",borderRadius:8,padding:"8px 14px",fontSize:12,cursor:"pointer"}}>✕</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {showAdd?(
+        <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid #2D2D3A",borderRadius:10,padding:14,marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
+          <input value={newBlock.title} onChange={e=>setNewBlock(p=>({...p,title:e.target.value}))} placeholder="Block title" style={inp}/>
+          <div style={{display:"flex",gap:8}}>
+            <input value={newBlock.time} onChange={e=>setNewBlock(p=>({...p,time:e.target.value}))} placeholder="09:00" style={{...inp,flex:1}}/>
+            <input value={newBlock.dur} onChange={e=>setNewBlock(p=>({...p,dur:e.target.value}))} placeholder="Mins" type="number" style={{...inp,flex:1}}/>
+          </div>
+          <select value={newBlock.cat} onChange={e=>setNewBlock(p=>({...p,cat:e.target.value}))} style={inp}>
+            <option value="routine">Routine</option>
+            <option value="body">Body & Health</option>
+            <option value="mind">Mind & Soul</option>
+            <option value="career">Career & Business</option>
+            <option value="learning">Learning</option>
+            <option value="social">Social</option>
+          </select>
+          <textarea value={newBlock.desc} onChange={e=>setNewBlock(p=>({...p,desc:e.target.value}))} placeholder="Notes (optional)" rows={2} style={{...inp,resize:"none"}}/>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={addBlock} style={{flex:1,background:"#F59E0B",color:"#0A0A0F",border:"none",borderRadius:8,padding:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>Add Block</button>
+            <button onClick={()=>setShowAdd(false)} style={{flex:1,background:"rgba(255,255,255,0.06)",color:"#94A3B8",border:"none",borderRadius:8,padding:10,fontSize:13,cursor:"pointer"}}>Cancel</button>
+          </div>
+        </div>
+      ):(
+        <button onClick={()=>setShowAdd(true)} style={{width:"100%",marginTop:12,background:"rgba(255,255,255,0.02)",border:"1px dashed #2D2D3A",borderRadius:10,color:"#475569",fontSize:13,padding:14,cursor:"pointer"}}>
+          + Add a block
+        </button>
+      )}
+    </div>
+  )}
+
+  {/* GOALS */}
+  {tab==="goals"&&(
+    <div style={{padding:16}}>
+      <p style={{fontSize:12,color:"#64748B",marginBottom:16}}>Toggle goals on/off, add new ones, or remove them entirely.</p>
+
+      {["mind","body","career","learning","social"].map(cat=>{
+        const c=CAT_COLORS[cat];
+        const catGoals=goals.filter(g=>g.cat===cat);
+        if(!catGoals.length) return null;
+        return (
+          <div key={cat} style={{marginBottom:20}}>
+            <div style={{fontSize:10,letterSpacing:2,color:c.color,marginBottom:8,fontWeight:600}}>{CAT_LABELS[cat].toUpperCase()}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {catGoals.map(goal=>{
+                const on=activeGoals.has(goal.id);
+                const isConfirming=confirmDelete===goal.id;
+                return (
+                  <div key={goal.id} style={{background:on?c.bg:"rgba(255,255,255,0.02)",border:`1px solid ${on?c.border:"#1E1E2E"}`,borderRadius:10,overflow:"hidden",transition:"all .2s"}}>
+                    {isConfirming?(
+                      <div style={{padding:"12px 14px"}}>
+                        <p style={{fontSize:12,color:"#94A3B8",marginBottom:10}}>Remove "{goal.label}" from your goals?</p>
+                        <div style={{display:"flex",gap:8}}>
+                          <button onClick={()=>removeGoal(goal.id)} style={{flex:1,background:"rgba(239,68,68,0.15)",color:"#EF4444",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer",fontWeight:600}}>Remove</button>
+                          <button onClick={()=>setConfirmDelete(null)} style={{flex:1,background:"rgba(255,255,255,0.05)",color:"#94A3B8",border:"none",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer"}}>Cancel</button>
+                        </div>
+                      </div>
+                    ):(
+                      <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px"}}>
+                        <div onClick={()=>toggleGoal(goal.id)} style={{display:"flex",alignItems:"center",gap:12,flex:1,cursor:"pointer"}}>
+                          <span style={{fontSize:20}}>{goal.icon}</span>
+                          <span style={{flex:1,fontSize:14,fontWeight:500,color:on?"#E2E8F0":"#475569"}}>{goal.label}</span>
+                          <div style={{width:22,height:22,borderRadius:6,background:on?c.color:"#1E1E2E",display:"flex",alignItems:"center",justifyContent:"center",flex:"0 0 auto"}}>
+                            {on&&<span style={{color:"#0A0A0F",fontSize:13,fontWeight:800}}>✓</span>}
+                          </div>
+                        </div>
+                        <button onClick={()=>setConfirmDelete(goal.id)} style={{background:"none",border:"none",color:"#334155",fontSize:16,cursor:"pointer",padding:"0 0 0 8px",lineHeight:1}}>×</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Add new goal */}
+      {showAddGoal?(
+        <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid #2D2D3A",borderRadius:10,padding:16,marginTop:8,display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#94A3B8",letterSpacing:1}}>NEW GOAL</div>
+
+          <input value={newGoal.label} onChange={e=>setNewGoal(p=>({...p,label:e.target.value}))} placeholder="Goal name e.g. Learn to cook" style={inp}/>
+
+          <div>
+            <div style={{fontSize:11,color:"#475569",marginBottom:6}}>Pick an icon</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {QUICK_ICONS.map(icon=>(
+                <button key={icon} onClick={()=>setNewGoal(p=>({...p,icon}))}
+                  style={{background:newGoal.icon===icon?"rgba(245,158,11,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${newGoal.icon===icon?"#F59E0B":"transparent"}`,borderRadius:8,padding:"6px 8px",fontSize:18,cursor:"pointer"}}>
+                  {icon}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{fontSize:11,color:"#475569",marginBottom:6}}>Category</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {Object.entries(CAT_LABELS).map(([k,v])=>{
+                const c=CAT_COLORS[k];
+                const sel=newGoal.cat===k;
+                return (
+                  <button key={k} onClick={()=>setNewGoal(p=>({...p,cat:k}))}
+                    style={{background:sel?c.bg:"rgba(255,255,255,0.04)",border:`1px solid ${sel?c.border:"transparent"}`,borderRadius:8,padding:"6px 10px",fontSize:11,color:sel?c.color:"#475569",cursor:"pointer",fontWeight:sel?600:400}}>
+                    {v}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={addGoal} style={{flex:1,background:"#F59E0B",color:"#0A0A0F",border:"none",borderRadius:8,padding:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>Add Goal</button>
+            <button onClick={()=>{setShowAddGoal(false);setNewGoal({label:"",icon:"⭐",cat:"mind"});}} style={{flex:1,background:"rgba(255,255,255,0.06)",color:"#94A3B8",border:"none",borderRadius:8,padding:10,fontSize:13,cursor:"pointer"}}>Cancel</button>
+          </div>
+        </div>
+      ):(
+        <button onClick={()=>setShowAddGoal(true)} style={{width:"100%",marginTop:8,background:"rgba(255,255,255,0.02)",border:"1px dashed #2D2D3A",borderRadius:10,color:"#475569",fontSize:13,padding:14,cursor:"pointer"}}>
+          + Add a new goal
+        </button>
+      )}
+    </div>
+  )}
+
+  {/* WEEK */}
+  {tab==="week"&&(
+    <div style={{padding:16}}>
+      {DAYS_FULL.map((day,di)=>{
+        const dayBlocks=blocks
+          .filter(b=>b.days.includes(di)&&(b.goals.some(g=>activeGoals.has(g))||b.cat==="routine"))
+          .sort((a,b)=>toMins(a.time)-toMins(b.time));
+        return (
+          <div key={day} style={{marginBottom:20}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+              <div style={{fontSize:12,fontWeight:700,letterSpacing:1.5,color:di===activeDay?"#F59E0B":"#64748B"}}>{day.toUpperCase()}</div>
+              <button onClick={()=>{setActiveDay(di);setTab("today");}} style={{background:"none",border:"none",color:"#475569",fontSize:11,cursor:"pointer"}}>View →</button>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {dayBlocks.map(b=>{
+                const c=CAT_COLORS[b.cat]||CAT_COLORS.routine;
+                return (
+                  <div key={b.id} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.02)",borderLeft:`2px solid ${c.color}`,borderRadius:4,padding:"6px 10px"}}>
+                    <span style={{fontSize:11,color:c.color,minWidth:58,flex:"0 0 auto"}}>{fmt(b.time)}</span>
+                    <span style={{fontSize:12,color:"#94A3B8"}}>{b.title}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+
+  {/* BOTTOM NAV */}
+  <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0F0F1A",borderTop:"1px solid #1E1E2E",display:"flex",padding:"8px 0 16px"}}>
+    {[{id:"today",icon:"📅",label:"Today"},{id:"goals",icon:"🎯",label:"Goals"},{id:"week",icon:"📆",label:"Week"}].map(t=>(
+      <button key={t.id} onClick={()=>setTab(t.id)}
+        style={{flex:1,background:"none",border:"none",color:tab===t.id?"#F59E0B":"#475569",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"8px 0"}}>
+        <span style={{fontSize:20}}>{t.icon}</span>
+        <span style={{fontSize:10,fontWeight:600,letterSpacing:1}}>{t.label.toUpperCase()}</span>
+      </button>
+    ))}
   </div>
 </div>
+```
 
-<script>
-const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-const SHORT = ["MON","TUE","WED","THU","FRI","SAT","SUN"];
-
-const CATS = {
-  mind:    {label:"Mind & Soul",       color:"#C084FC", bg:"rgba(192,132,252,.12)"},
-  body:    {label:"Body & Health",     color:"#34D399", bg:"rgba(52,211,153,.12)"},
-  career:  {label:"Career & Business", color:"#F59E0B", bg:"rgba(245,158,11,.12)"},
-  learning:{label:"Learning & Culture",color:"#60A5FA", bg:"rgba(96,165,250,.12)"},
-  social:  {label:"Social",            color:"#F472B6", bg:"rgba(244,114,182,.12)"},
-  routine: {label:"Routine",           color:"#94A3B8", bg:"rgba(148,163,184,.08)"},
-};
-
-const GOALS = {
-  G1:"Build a Routine", G2:"Treat Body Better", G3:"Balanced Diet",
-  G4:"Start a Business", G5:"Read More", G6:"Commercial Knowledge",
-  G7:"Learn Guitar", G8:"Quality Social Group", G9:"Play Tennis",
-  G10:"Peace of Mind", G11:"Remove Past Trauma", G13:"Learn History & Culture",
-  G14:"Healthy Relationship", G15:"Speak to Myself with Love",
-};
-
-const SCHEDULE = {
-  Monday:[
-    {time:"06:00",dur:20,title:"Journaling + Gratitude",desc:"3 things you're grateful for. Reframe negative self-talk. Set 3 intentions for the day.",cat:"mind",goal:"G15, G10"},
-    {time:"06:20",dur:10,title:"Morning Routine",desc:"Cold shower, get dressed, prep for the day.",cat:"routine",goal:"G1"},
-    {time:"06:30",dur:60,title:"Gym Session",desc:"Weights focus. Log your lifts. Protein-rich breakfast after.",cat:"body",goal:"G2, G3"},
-    {time:"08:00",dur:30,title:"Healthy Breakfast",desc:"Low carb, high protein. Prep the night before when possible.",cat:"body",goal:"G3"},
-    {time:"09:00",dur:480,title:"Work / Deep Work",desc:"Audit work + intentional learning. Block distractions in the morning.",cat:"career",goal:"G6"},
-    {time:"18:00",dur:30,title:"Reading Block",desc:"20+ pages minimum. Non-fiction or history. No screens.",cat:"learning",goal:"G5, G13"},
-    {time:"18:30",dur:30,title:"Guitar Practice",desc:"15–30 mins. Use Justin Guitar. Focus on one song this week.",cat:"learning",goal:"G7"},
-    {time:"19:30",dur:90,title:"Business / Side Hustle",desc:"AI automation agency work. Build, pitch, or research. Track progress.",cat:"career",goal:"G4, G6"},
-    {time:"21:30",dur:30,title:"Wind Down",desc:"No screens. Light stretching or walk. Prep tomorrow's schedule.",cat:"routine",goal:"G1"},
-    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours. Non-negotiable.",cat:"routine",goal:"G1"},
-  ],
-  Tuesday:[
-    {time:"06:00",dur:20,title:"Journaling + Gratitude",desc:"3 things grateful for. Positive self-talk check-in.",cat:"mind",goal:"G15, G10"},
-    {time:"06:20",dur:10,title:"Morning Routine",desc:"Cold shower, get dressed, prep.",cat:"routine",goal:"G1"},
-    {time:"06:30",dur:30,title:"Healthy Breakfast",desc:"Meal-prepped low carb option.",cat:"body",goal:"G3"},
-    {time:"09:00",dur:480,title:"Work / Deep Work",desc:"Audit + commercial knowledge building. Read one industry article.",cat:"career",goal:"G6"},
-    {time:"18:00",dur:90,title:"Tennis",desc:"Book a court. Find a regular partner. Keep score — makes it competitive.",cat:"body",goal:"G9"},
-    {time:"19:30",dur:30,title:"Reading Block",desc:"20+ pages. History, culture, or investing.",cat:"learning",goal:"G5, G13"},
-    {time:"20:00",dur:60,title:"Business / Side Hustle",desc:"AI agency work. Client outreach or product build.",cat:"career",goal:"G4"},
-    {time:"21:30",dur:30,title:"Wind Down",desc:"Reflect on the day. No screens last 30 mins.",cat:"routine",goal:"G1"},
-    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours.",cat:"routine",goal:"G1"},
-  ],
-  Wednesday:[
-    {time:"06:00",dur:20,title:"Journaling + Gratitude",desc:"Midweek check-in. How are you tracking against your goals?",cat:"mind",goal:"G15, G10"},
-    {time:"06:20",dur:10,title:"Morning Routine",desc:"Cold shower, get dressed, prep.",cat:"routine",goal:"G1"},
-    {time:"06:30",dur:60,title:"Gym Session",desc:"Cardio + core focus. Keep intensity high.",cat:"body",goal:"G2"},
-    {time:"08:00",dur:30,title:"Healthy Breakfast",desc:"Fruit, veg, protein. No processed food.",cat:"body",goal:"G3"},
-    {time:"09:00",dur:480,title:"Work / Deep Work",desc:"Push on complex tasks. No shallow work in morning block.",cat:"career",goal:"G6"},
-    {time:"18:00",dur:30,title:"Reading Block",desc:"20+ pages. Vary between genres — history one day, business next.",cat:"learning",goal:"G5, G13"},
-    {time:"18:30",dur:30,title:"Guitar Practice",desc:"Review last lesson. Try to nail one full song.",cat:"learning",goal:"G7"},
-    {time:"19:00",dur:60,title:"Social / Relationships",desc:"Reach out to a friend or family member. Make plans. Be intentional.",cat:"social",goal:"G8, G14"},
-    {time:"20:00",dur:90,title:"Business / Side Hustle",desc:"Product build or agency outreach. Document progress.",cat:"career",goal:"G4"},
-    {time:"21:30",dur:30,title:"Wind Down",desc:"Light stretching. Prep tomorrow.",cat:"routine",goal:"G1"},
-    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours.",cat:"routine",goal:"G1"},
-  ],
-  Thursday:[
-    {time:"06:00",dur:20,title:"Journaling + Gratitude",desc:"How are you speaking to yourself this week? Reframe anything negative.",cat:"mind",goal:"G15, G11"},
-    {time:"06:20",dur:10,title:"Morning Routine",desc:"Cold shower, get dressed, prep.",cat:"routine",goal:"G1"},
-    {time:"06:30",dur:30,title:"Healthy Breakfast",desc:"Low carb. Prep the night before.",cat:"body",goal:"G3"},
-    {time:"09:00",dur:480,title:"Work / Deep Work",desc:"Prioritise difficult tasks. One learning goal per day — a concept or article.",cat:"career",goal:"G6"},
-    {time:"18:00",dur:30,title:"Reading Block",desc:"20+ pages.",cat:"learning",goal:"G5"},
-    {time:"18:30",dur:30,title:"Guitar Practice",desc:"New chord or technique this session.",cat:"learning",goal:"G7"},
-    {time:"19:30",dur:90,title:"Business / Side Hustle",desc:"Deep work on the AI agency or Trust Manager app. Ship something.",cat:"career",goal:"G4"},
-    {time:"21:30",dur:30,title:"Wind Down",desc:"Reflect. Journaling optional. Prep Friday.",cat:"routine",goal:"G1"},
-    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours.",cat:"routine",goal:"G1"},
-  ],
-  Friday:[
-    {time:"06:00",dur:20,title:"Journaling + Gratitude",desc:"Week review. What went well? What are you proud of?",cat:"mind",goal:"G15, G10"},
-    {time:"06:20",dur:10,title:"Morning Routine",desc:"Cold shower, get dressed, prep.",cat:"routine",goal:"G1"},
-    {time:"06:30",dur:60,title:"Gym Session",desc:"End the week strong. Upper body or full body.",cat:"body",goal:"G2"},
-    {time:"08:00",dur:30,title:"Healthy Breakfast",desc:"Reward yourself with a good meal. Still low carb.",cat:"body",goal:"G3"},
-    {time:"09:00",dur:480,title:"Work / Deep Work",desc:"Wrap up the week. Set Monday priorities. No new projects Friday afternoon.",cat:"career",goal:"G6"},
-    {time:"18:00",dur:30,title:"Reading Block",desc:"20+ pages.",cat:"learning",goal:"G5"},
-    {time:"18:30",dur:90,title:"Social / Evening",desc:"Dinner, drinks, or plans with quality people. Be fully present.",cat:"social",goal:"G8, G14"},
-    {time:"20:00",dur:60,title:"Cultural Learning",desc:"Documentary, history content, or a podcast on a topic you know nothing about.",cat:"learning",goal:"G13"},
-    {time:"21:30",dur:30,title:"Wind Down",desc:"Lighter evening. Relax but stay off doomscrolling.",cat:"routine",goal:"G1"},
-    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours.",cat:"routine",goal:"G1"},
-  ],
-  Saturday:[
-    {time:"07:00",dur:20,title:"Journaling + Gratitude",desc:"Slower start. Reflect on the week. What do you want from the weekend?",cat:"mind",goal:"G15, G10"},
-    {time:"07:20",dur:40,title:"Healthy Breakfast",desc:"Meal prep for the week. Stock up on fruit & veg.",cat:"body",goal:"G3"},
-    {time:"08:30",dur:90,title:"Gym Session",desc:"Longer session. Legs or full body. Take your time.",cat:"body",goal:"G2"},
-    {time:"10:30",dur:60,title:"Meal Prep",desc:"Prep healthy meals for the week. Removes decision fatigue.",cat:"body",goal:"G3"},
-    {time:"12:00",dur:120,title:"Business / Side Hustle",desc:"Biggest block of the week. Build something meaningful. Focus on Trust Manager or AI agency.",cat:"career",goal:"G4, G6"},
-    {time:"14:00",dur:60,title:"Reading Block",desc:"Longer reading session. Tackle a bigger chapter.",cat:"learning",goal:"G5, G13"},
-    {time:"15:00",dur:60,title:"Guitar Practice",desc:"Extended session. Learn a new song from start.",cat:"learning",goal:"G7"},
-    {time:"16:00",dur:120,title:"Tennis or Free Time",desc:"Hit the court. Or go for a walk, explore somewhere new.",cat:"body",goal:"G9"},
-    {time:"18:00",dur:180,title:"Social / Evening",desc:"Quality time with friends or someone you care about. Be fully present.",cat:"social",goal:"G8, G14"},
-    {time:"22:00",dur:480,title:"Sleep",desc:"Rest. You earned it.",cat:"routine",goal:"G1"},
-  ],
-  Sunday:[
-    {time:"07:30",dur:20,title:"Journaling + Weekly Review",desc:"Review the week. Score yourself on each goal. Set 3 priorities for next week.",cat:"mind",goal:"G15, G10, G11"},
-    {time:"08:00",dur:60,title:"Slow Breakfast",desc:"Healthy, relaxed. No rushing. Be present.",cat:"body",goal:"G3"},
-    {time:"09:00",dur:60,title:"Tennis",desc:"Sunday morning court session. Competitive and fun.",cat:"body",goal:"G9"},
-    {time:"10:30",dur:90,title:"Cultural / Personal Learning",desc:"Documentary, book on history or culture, or a long-form article. Broaden your worldview.",cat:"learning",goal:"G13"},
-    {time:"12:00",dur:60,title:"Rest / Recovery",desc:"Nap, walk, or do nothing. Recovery is productive.",cat:"routine",goal:"G1, G10"},
-    {time:"13:00",dur:60,title:"Reading Block",desc:"20+ pages. Something for pleasure as well as growth.",cat:"learning",goal:"G5"},
-    {time:"14:00",dur:120,title:"Business Planning",desc:"Review business goals. Plan the week ahead. Identify one key action to move things forward.",cat:"career",goal:"G4"},
-    {time:"16:00",dur:60,title:"Self-Reflection / Therapy",desc:"Work through past thoughts or feelings. Consider professional therapy — highest ROI habit on this list.",cat:"mind",goal:"G11, G10"},
-    {time:"17:00",dur:60,title:"Guitar Practice",desc:"Relax into it. Play for fun, not just progress.",cat:"learning",goal:"G7"},
-    {time:"18:00",dur:120,title:"Family / Quality People",desc:"Call or visit someone who matters. Invest in real relationships.",cat:"social",goal:"G8, G14"},
-    {time:"20:30",dur:30,title:"Week Prep",desc:"Lay out gym kit. Plan meals. Set tomorrow's 3 priorities.",cat:"routine",goal:"G1"},
-    {time:"21:00",dur:60,title:"Wind Down",desc:"Reading only. No screens. Calm the mind.",cat:"routine",goal:"G1"},
-    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours. Start the week strong.",cat:"routine",goal:"G1"},
-  ],
-};
-
-let activeDay = 0;
-let activeFilter = null;
-let expandedIndex = null;
-
-function fmt(t){
-  const [h,m]=t.split(":");
-  const hr=parseInt(h);
-  return `${hr%12||12}:${m} ${hr>=12?"PM":"AM"}`;
+);
 }
-
-function render(){
-  renderDayTabs();
-  renderFilters();
-  renderBlocks();
-  renderLegend();
-}
-
-function renderDayTabs(){
-  const el=document.getElementById("dayTabs");
-  el.innerHTML=SHORT.map((d,i)=>`
-    <button class="day-tab${i===activeDay?" active":""}" onclick="setDay(${i})">${d}</button>
-  `).join("");
-}
-
-function renderFilters(){
-  const el=document.getElementById("filters");
-  el.innerHTML=`<button class="filter-btn" onclick="setFilter(null)" style="background:${!activeFilter?"#F59E0B":"rgba(255,255,255,.05)"};color:${!activeFilter?"#0A0A0F":"#64748B"};border-color:transparent">ALL</button>`
-  +Object.entries(CATS).map(([k,c])=>`
-    <button class="filter-btn" onclick="setFilter('${k}')" style="background:${activeFilter===k?c.bg:"rgba(255,255,255,.03)"};color:${activeFilter===k?c.color:"#475569"};border-color:${activeFilter===k?c.color:"transparent"};opacity:${activeFilter&&activeFilter!==k?.5:1}">${c.label.toUpperCase()}</button>
-  `).join("");
-}
-
-function renderBlocks(){
-  const el=document.getElementById("blocks");
-  const day=DAYS[activeDay];
-  const items=SCHEDULE[day].filter(i=>!activeFilter||i.cat===activeFilter);
-  el.innerHTML=items.map((item,i)=>{
-    const c=CATS[item.cat];
-    const open=expandedIndex===i;
-    const tags=item.goal.split(", ").map(g=>`<span class="goal-tag">${g}: ${GOALS[g]||g}</span>`).join("");
-    return `
-      <div class="block" onclick="toggle(${i})" style="border-left-color:${c.color};background:${open?c.bg:"rgba(255,255,255,.03)"};border-color:${open?c.color+"40":"#1E1E2E"};border-left-color:${c.color}">
-        <div class="block-row">
-          <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
-            <div class="block-time">
-              <div class="block-time-main" style="color:${c.color}">${fmt(item.time)}</div>
-              <div class="block-time-dur">${item.dur}m</div>
-            </div>
-            <div class="divider"></div>
-            <div class="block-info">
-              <div class="block-title">${item.title}</div>
-              <div class="block-cat" style="color:${c.color}">${c.label.toUpperCase()}</div>
-            </div>
-          </div>
-          <div class="arrow${open?" open":""}" style="color:#334155">›</div>
-        </div>
-        <div class="expand${open?" open":""}">
-          <div class="expand-inner" style="border-top-color:${c.color}20">
-            <p class="expand-desc">${item.desc}</p>
-            <div>${tags}</div>
-          </div>
-        </div>
-      </div>`;
-  }).join("");
-}
-
-function renderLegend(){
-  document.getElementById("legend").innerHTML=Object.entries(GOALS).map(([k,v])=>`
-    <div class="legend-item">
-      <span class="legend-key">${k}</span>
-      <span class="legend-val">${v}</span>
-    </div>`).join("");
-}
-
-function setDay(i){activeDay=i;expandedIndex=null;renderDayTabs();renderBlocks()}
-function setFilter(f){activeFilter=f;expandedIndex=null;renderFilters();renderBlocks()}
-function toggle(i){expandedIndex=expandedIndex===i?null:i;renderBlocks()}
-
-render();
-</script>
-
-</body>
-</html>
