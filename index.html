@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>Kam's Timetable</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:#0A0A0F;color:#E2E8F0;font-family:'DM Mono','Courier New',monospace;min-height:100vh;overflow-x:hidden}
+  ::-webkit-scrollbar{width:3px}
+  ::-webkit-scrollbar-thumb{background:#2D2D3A;border-radius:2px}
+
+#header{background:linear-gradient(180deg,#0F0F1A 0%,#0A0A0F 100%);border-bottom:1px solid #1E1E2E;padding:env(safe-area-inset-top,20px) 20px 0;padding-top:max(env(safe-area-inset-top),20px)}
+.eyebrow{font-size:10px;letter-spacing:3px;color:#F59E0B;font-weight:500;margin-bottom:6px}
+h1{font-family:‘Playfair Display’,Georgia,serif;font-size:36px;font-weight:900;background:linear-gradient(135deg,#fff 0%,#94A3B8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1}
+.subtitle{font-size:11px;color:#64748B;letter-spacing:.5px;margin:6px 0 20px}
+
+.day-tabs{display:flex;overflow-x:auto;border-bottom:1px solid #1E1E2E;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.day-tabs::-webkit-scrollbar{display:none}
+.day-tab{flex:0 0 auto;background:none;border:none;color:#475569;font-family:‘DM Mono’,monospace;font-size:11px;font-weight:500;letter-spacing:2px;padding:12px 16px;cursor:pointer;position:relative;transition:color .2s}
+.day-tab.active{color:#F59E0B}
+.day-tab.active::after{content:’’;position:absolute;bottom:-1px;left:0;right:0;height:2px;background:#F59E0B}
+
+#main{padding:20px 20px 80px;max-width:720px;margin:0 auto}
+
+.filters{display:flex;gap:8px;overflow-x:auto;margin-bottom:20px;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.filter-btn{flex:0 0 auto;border:1px solid transparent;border-radius:4px;font-family:‘DM Mono’,monospace;font-size:10px;font-weight:500;letter-spacing:1.5px;padding:6px 12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+
+.blocks{display:flex;flex-direction:column;gap:8px}
+.block{border-radius:8px;padding:14px 16px;cursor:pointer;transition:transform .15s;border:1px solid #1E1E2E;border-left-width:3px;background:rgba(255,255,255,.03);user-select:none}
+.block:active{transform:scale(.98)}
+.block-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.block-time{flex:0 0 auto;text-align:right}
+.block-time-main{font-size:11px;font-weight:500;letter-spacing:.5px}
+.block-time-dur{font-size:9px;color:#334155;letter-spacing:.5px;margin-top:2px}
+.divider{width:1px;height:32px;background:#1E1E2E;flex:0 0 auto}
+.block-info{flex:1;min-width:0}
+.block-title{font-size:13px;font-weight:500;color:#E2E8F0;letter-spacing:.3px}
+.block-cat{font-size:10px;letter-spacing:.5px;margin-top:2px}
+.arrow{font-size:16px;color:#334155;flex:0 0 auto;transition:transform .2s}
+.arrow.open{transform:rotate(90deg)}
+
+.expand{overflow:hidden;max-height:0;opacity:0;transition:max-height .25s ease,opacity .25s ease}
+.expand.open{max-height:200px;opacity:1}
+.expand-inner{margin-top:12px;padding-top:12px;border-top-width:1px;border-top-style:solid}
+.expand-desc{font-size:12px;color:#94A3B8;line-height:1.6;letter-spacing:.3px;margin-bottom:8px}
+.goal-tag{display:inline-block;font-size:9px;padding:2px 6px;border-radius:3px;margin-right:4px;margin-bottom:4px;background:rgba(255,255,255,.06);color:#94A3B8;letter-spacing:.5px}
+
+.legend{margin-top:36px;padding:20px;background:rgba(255,255,255,.02);border:1px solid #1E1E2E;border-radius:8px}
+.legend-title{font-size:10px;letter-spacing:2px;color:#475569;margin-bottom:14px}
+.legend-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.legend-item{display:flex;gap:8px;align-items:flex-start}
+.legend-key{font-size:10px;color:#F59E0B;font-weight:500;flex:0 0 auto;margin-top:1px}
+.legend-val{font-size:11px;color:#64748B;letter-spacing:.3px;line-height:1.4}
+</style>
+
+</head>
+<body>
+
+<div id="header">
+  <p class="eyebrow">YOUR PLAN — 05.04.2026</p>
+  <h1>Daily Timetable</h1>
+  <p class="subtitle">15 goals · mapped across 7 days</p>
+  <div class="day-tabs" id="dayTabs"></div>
+</div>
+
+<div id="main">
+  <div class="filters" id="filters"></div>
+  <div class="blocks" id="blocks"></div>
+  <div class="legend">
+    <p class="legend-title">GOAL REFERENCE</p>
+    <div class="legend-grid" id="legend"></div>
+  </div>
+</div>
+
+<script>
+const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const SHORT = ["MON","TUE","WED","THU","FRI","SAT","SUN"];
+
+const CATS = {
+  mind:    {label:"Mind & Soul",       color:"#C084FC", bg:"rgba(192,132,252,.12)"},
+  body:    {label:"Body & Health",     color:"#34D399", bg:"rgba(52,211,153,.12)"},
+  career:  {label:"Career & Business", color:"#F59E0B", bg:"rgba(245,158,11,.12)"},
+  learning:{label:"Learning & Culture",color:"#60A5FA", bg:"rgba(96,165,250,.12)"},
+  social:  {label:"Social",            color:"#F472B6", bg:"rgba(244,114,182,.12)"},
+  routine: {label:"Routine",           color:"#94A3B8", bg:"rgba(148,163,184,.08)"},
+};
+
+const GOALS = {
+  G1:"Build a Routine", G2:"Treat Body Better", G3:"Balanced Diet",
+  G4:"Start a Business", G5:"Read More", G6:"Commercial Knowledge",
+  G7:"Learn Guitar", G8:"Quality Social Group", G9:"Play Tennis",
+  G10:"Peace of Mind", G11:"Remove Past Trauma", G13:"Learn History & Culture",
+  G14:"Healthy Relationship", G15:"Speak to Myself with Love",
+};
+
+const SCHEDULE = {
+  Monday:[
+    {time:"06:00",dur:20,title:"Journaling + Gratitude",desc:"3 things you're grateful for. Reframe negative self-talk. Set 3 intentions for the day.",cat:"mind",goal:"G15, G10"},
+    {time:"06:20",dur:10,title:"Morning Routine",desc:"Cold shower, get dressed, prep for the day.",cat:"routine",goal:"G1"},
+    {time:"06:30",dur:60,title:"Gym Session",desc:"Weights focus. Log your lifts. Protein-rich breakfast after.",cat:"body",goal:"G2, G3"},
+    {time:"08:00",dur:30,title:"Healthy Breakfast",desc:"Low carb, high protein. Prep the night before when possible.",cat:"body",goal:"G3"},
+    {time:"09:00",dur:480,title:"Work / Deep Work",desc:"Audit work + intentional learning. Block distractions in the morning.",cat:"career",goal:"G6"},
+    {time:"18:00",dur:30,title:"Reading Block",desc:"20+ pages minimum. Non-fiction or history. No screens.",cat:"learning",goal:"G5, G13"},
+    {time:"18:30",dur:30,title:"Guitar Practice",desc:"15–30 mins. Use Justin Guitar. Focus on one song this week.",cat:"learning",goal:"G7"},
+    {time:"19:30",dur:90,title:"Business / Side Hustle",desc:"AI automation agency work. Build, pitch, or research. Track progress.",cat:"career",goal:"G4, G6"},
+    {time:"21:30",dur:30,title:"Wind Down",desc:"No screens. Light stretching or walk. Prep tomorrow's schedule.",cat:"routine",goal:"G1"},
+    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours. Non-negotiable.",cat:"routine",goal:"G1"},
+  ],
+  Tuesday:[
+    {time:"06:00",dur:20,title:"Journaling + Gratitude",desc:"3 things grateful for. Positive self-talk check-in.",cat:"mind",goal:"G15, G10"},
+    {time:"06:20",dur:10,title:"Morning Routine",desc:"Cold shower, get dressed, prep.",cat:"routine",goal:"G1"},
+    {time:"06:30",dur:30,title:"Healthy Breakfast",desc:"Meal-prepped low carb option.",cat:"body",goal:"G3"},
+    {time:"09:00",dur:480,title:"Work / Deep Work",desc:"Audit + commercial knowledge building. Read one industry article.",cat:"career",goal:"G6"},
+    {time:"18:00",dur:90,title:"Tennis",desc:"Book a court. Find a regular partner. Keep score — makes it competitive.",cat:"body",goal:"G9"},
+    {time:"19:30",dur:30,title:"Reading Block",desc:"20+ pages. History, culture, or investing.",cat:"learning",goal:"G5, G13"},
+    {time:"20:00",dur:60,title:"Business / Side Hustle",desc:"AI agency work. Client outreach or product build.",cat:"career",goal:"G4"},
+    {time:"21:30",dur:30,title:"Wind Down",desc:"Reflect on the day. No screens last 30 mins.",cat:"routine",goal:"G1"},
+    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours.",cat:"routine",goal:"G1"},
+  ],
+  Wednesday:[
+    {time:"06:00",dur:20,title:"Journaling + Gratitude",desc:"Midweek check-in. How are you tracking against your goals?",cat:"mind",goal:"G15, G10"},
+    {time:"06:20",dur:10,title:"Morning Routine",desc:"Cold shower, get dressed, prep.",cat:"routine",goal:"G1"},
+    {time:"06:30",dur:60,title:"Gym Session",desc:"Cardio + core focus. Keep intensity high.",cat:"body",goal:"G2"},
+    {time:"08:00",dur:30,title:"Healthy Breakfast",desc:"Fruit, veg, protein. No processed food.",cat:"body",goal:"G3"},
+    {time:"09:00",dur:480,title:"Work / Deep Work",desc:"Push on complex tasks. No shallow work in morning block.",cat:"career",goal:"G6"},
+    {time:"18:00",dur:30,title:"Reading Block",desc:"20+ pages. Vary between genres — history one day, business next.",cat:"learning",goal:"G5, G13"},
+    {time:"18:30",dur:30,title:"Guitar Practice",desc:"Review last lesson. Try to nail one full song.",cat:"learning",goal:"G7"},
+    {time:"19:00",dur:60,title:"Social / Relationships",desc:"Reach out to a friend or family member. Make plans. Be intentional.",cat:"social",goal:"G8, G14"},
+    {time:"20:00",dur:90,title:"Business / Side Hustle",desc:"Product build or agency outreach. Document progress.",cat:"career",goal:"G4"},
+    {time:"21:30",dur:30,title:"Wind Down",desc:"Light stretching. Prep tomorrow.",cat:"routine",goal:"G1"},
+    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours.",cat:"routine",goal:"G1"},
+  ],
+  Thursday:[
+    {time:"06:00",dur:20,title:"Journaling + Gratitude",desc:"How are you speaking to yourself this week? Reframe anything negative.",cat:"mind",goal:"G15, G11"},
+    {time:"06:20",dur:10,title:"Morning Routine",desc:"Cold shower, get dressed, prep.",cat:"routine",goal:"G1"},
+    {time:"06:30",dur:30,title:"Healthy Breakfast",desc:"Low carb. Prep the night before.",cat:"body",goal:"G3"},
+    {time:"09:00",dur:480,title:"Work / Deep Work",desc:"Prioritise difficult tasks. One learning goal per day — a concept or article.",cat:"career",goal:"G6"},
+    {time:"18:00",dur:30,title:"Reading Block",desc:"20+ pages.",cat:"learning",goal:"G5"},
+    {time:"18:30",dur:30,title:"Guitar Practice",desc:"New chord or technique this session.",cat:"learning",goal:"G7"},
+    {time:"19:30",dur:90,title:"Business / Side Hustle",desc:"Deep work on the AI agency or Trust Manager app. Ship something.",cat:"career",goal:"G4"},
+    {time:"21:30",dur:30,title:"Wind Down",desc:"Reflect. Journaling optional. Prep Friday.",cat:"routine",goal:"G1"},
+    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours.",cat:"routine",goal:"G1"},
+  ],
+  Friday:[
+    {time:"06:00",dur:20,title:"Journaling + Gratitude",desc:"Week review. What went well? What are you proud of?",cat:"mind",goal:"G15, G10"},
+    {time:"06:20",dur:10,title:"Morning Routine",desc:"Cold shower, get dressed, prep.",cat:"routine",goal:"G1"},
+    {time:"06:30",dur:60,title:"Gym Session",desc:"End the week strong. Upper body or full body.",cat:"body",goal:"G2"},
+    {time:"08:00",dur:30,title:"Healthy Breakfast",desc:"Reward yourself with a good meal. Still low carb.",cat:"body",goal:"G3"},
+    {time:"09:00",dur:480,title:"Work / Deep Work",desc:"Wrap up the week. Set Monday priorities. No new projects Friday afternoon.",cat:"career",goal:"G6"},
+    {time:"18:00",dur:30,title:"Reading Block",desc:"20+ pages.",cat:"learning",goal:"G5"},
+    {time:"18:30",dur:90,title:"Social / Evening",desc:"Dinner, drinks, or plans with quality people. Be fully present.",cat:"social",goal:"G8, G14"},
+    {time:"20:00",dur:60,title:"Cultural Learning",desc:"Documentary, history content, or a podcast on a topic you know nothing about.",cat:"learning",goal:"G13"},
+    {time:"21:30",dur:30,title:"Wind Down",desc:"Lighter evening. Relax but stay off doomscrolling.",cat:"routine",goal:"G1"},
+    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours.",cat:"routine",goal:"G1"},
+  ],
+  Saturday:[
+    {time:"07:00",dur:20,title:"Journaling + Gratitude",desc:"Slower start. Reflect on the week. What do you want from the weekend?",cat:"mind",goal:"G15, G10"},
+    {time:"07:20",dur:40,title:"Healthy Breakfast",desc:"Meal prep for the week. Stock up on fruit & veg.",cat:"body",goal:"G3"},
+    {time:"08:30",dur:90,title:"Gym Session",desc:"Longer session. Legs or full body. Take your time.",cat:"body",goal:"G2"},
+    {time:"10:30",dur:60,title:"Meal Prep",desc:"Prep healthy meals for the week. Removes decision fatigue.",cat:"body",goal:"G3"},
+    {time:"12:00",dur:120,title:"Business / Side Hustle",desc:"Biggest block of the week. Build something meaningful. Focus on Trust Manager or AI agency.",cat:"career",goal:"G4, G6"},
+    {time:"14:00",dur:60,title:"Reading Block",desc:"Longer reading session. Tackle a bigger chapter.",cat:"learning",goal:"G5, G13"},
+    {time:"15:00",dur:60,title:"Guitar Practice",desc:"Extended session. Learn a new song from start.",cat:"learning",goal:"G7"},
+    {time:"16:00",dur:120,title:"Tennis or Free Time",desc:"Hit the court. Or go for a walk, explore somewhere new.",cat:"body",goal:"G9"},
+    {time:"18:00",dur:180,title:"Social / Evening",desc:"Quality time with friends or someone you care about. Be fully present.",cat:"social",goal:"G8, G14"},
+    {time:"22:00",dur:480,title:"Sleep",desc:"Rest. You earned it.",cat:"routine",goal:"G1"},
+  ],
+  Sunday:[
+    {time:"07:30",dur:20,title:"Journaling + Weekly Review",desc:"Review the week. Score yourself on each goal. Set 3 priorities for next week.",cat:"mind",goal:"G15, G10, G11"},
+    {time:"08:00",dur:60,title:"Slow Breakfast",desc:"Healthy, relaxed. No rushing. Be present.",cat:"body",goal:"G3"},
+    {time:"09:00",dur:60,title:"Tennis",desc:"Sunday morning court session. Competitive and fun.",cat:"body",goal:"G9"},
+    {time:"10:30",dur:90,title:"Cultural / Personal Learning",desc:"Documentary, book on history or culture, or a long-form article. Broaden your worldview.",cat:"learning",goal:"G13"},
+    {time:"12:00",dur:60,title:"Rest / Recovery",desc:"Nap, walk, or do nothing. Recovery is productive.",cat:"routine",goal:"G1, G10"},
+    {time:"13:00",dur:60,title:"Reading Block",desc:"20+ pages. Something for pleasure as well as growth.",cat:"learning",goal:"G5"},
+    {time:"14:00",dur:120,title:"Business Planning",desc:"Review business goals. Plan the week ahead. Identify one key action to move things forward.",cat:"career",goal:"G4"},
+    {time:"16:00",dur:60,title:"Self-Reflection / Therapy",desc:"Work through past thoughts or feelings. Consider professional therapy — highest ROI habit on this list.",cat:"mind",goal:"G11, G10"},
+    {time:"17:00",dur:60,title:"Guitar Practice",desc:"Relax into it. Play for fun, not just progress.",cat:"learning",goal:"G7"},
+    {time:"18:00",dur:120,title:"Family / Quality People",desc:"Call or visit someone who matters. Invest in real relationships.",cat:"social",goal:"G8, G14"},
+    {time:"20:30",dur:30,title:"Week Prep",desc:"Lay out gym kit. Plan meals. Set tomorrow's 3 priorities.",cat:"routine",goal:"G1"},
+    {time:"21:00",dur:60,title:"Wind Down",desc:"Reading only. No screens. Calm the mind.",cat:"routine",goal:"G1"},
+    {time:"22:00",dur:480,title:"Sleep",desc:"8 hours. Start the week strong.",cat:"routine",goal:"G1"},
+  ],
+};
+
+let activeDay = 0;
+let activeFilter = null;
+let expandedIndex = null;
+
+function fmt(t){
+  const [h,m]=t.split(":");
+  const hr=parseInt(h);
+  return `${hr%12||12}:${m} ${hr>=12?"PM":"AM"}`;
+}
+
+function render(){
+  renderDayTabs();
+  renderFilters();
+  renderBlocks();
+  renderLegend();
+}
+
+function renderDayTabs(){
+  const el=document.getElementById("dayTabs");
+  el.innerHTML=SHORT.map((d,i)=>`
+    <button class="day-tab${i===activeDay?" active":""}" onclick="setDay(${i})">${d}</button>
+  `).join("");
+}
+
+function renderFilters(){
+  const el=document.getElementById("filters");
+  el.innerHTML=`<button class="filter-btn" onclick="setFilter(null)" style="background:${!activeFilter?"#F59E0B":"rgba(255,255,255,.05)"};color:${!activeFilter?"#0A0A0F":"#64748B"};border-color:transparent">ALL</button>`
+  +Object.entries(CATS).map(([k,c])=>`
+    <button class="filter-btn" onclick="setFilter('${k}')" style="background:${activeFilter===k?c.bg:"rgba(255,255,255,.03)"};color:${activeFilter===k?c.color:"#475569"};border-color:${activeFilter===k?c.color:"transparent"};opacity:${activeFilter&&activeFilter!==k?.5:1}">${c.label.toUpperCase()}</button>
+  `).join("");
+}
+
+function renderBlocks(){
+  const el=document.getElementById("blocks");
+  const day=DAYS[activeDay];
+  const items=SCHEDULE[day].filter(i=>!activeFilter||i.cat===activeFilter);
+  el.innerHTML=items.map((item,i)=>{
+    const c=CATS[item.cat];
+    const open=expandedIndex===i;
+    const tags=item.goal.split(", ").map(g=>`<span class="goal-tag">${g}: ${GOALS[g]||g}</span>`).join("");
+    return `
+      <div class="block" onclick="toggle(${i})" style="border-left-color:${c.color};background:${open?c.bg:"rgba(255,255,255,.03)"};border-color:${open?c.color+"40":"#1E1E2E"};border-left-color:${c.color}">
+        <div class="block-row">
+          <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
+            <div class="block-time">
+              <div class="block-time-main" style="color:${c.color}">${fmt(item.time)}</div>
+              <div class="block-time-dur">${item.dur}m</div>
+            </div>
+            <div class="divider"></div>
+            <div class="block-info">
+              <div class="block-title">${item.title}</div>
+              <div class="block-cat" style="color:${c.color}">${c.label.toUpperCase()}</div>
+            </div>
+          </div>
+          <div class="arrow${open?" open":""}" style="color:#334155">›</div>
+        </div>
+        <div class="expand${open?" open":""}">
+          <div class="expand-inner" style="border-top-color:${c.color}20">
+            <p class="expand-desc">${item.desc}</p>
+            <div>${tags}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function renderLegend(){
+  document.getElementById("legend").innerHTML=Object.entries(GOALS).map(([k,v])=>`
+    <div class="legend-item">
+      <span class="legend-key">${k}</span>
+      <span class="legend-val">${v}</span>
+    </div>`).join("");
+}
+
+function setDay(i){activeDay=i;expandedIndex=null;renderDayTabs();renderBlocks()}
+function setFilter(f){activeFilter=f;expandedIndex=null;renderFilters();renderBlocks()}
+function toggle(i){expandedIndex=expandedIndex===i?null:i;renderBlocks()}
+
+render();
+</script>
+
+</body>
+</html>
